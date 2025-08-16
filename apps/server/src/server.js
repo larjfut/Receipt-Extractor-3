@@ -2,11 +2,15 @@ import fs from 'fs'
 import path from 'path'
 import express from 'express'
 import cors from 'cors'
-import multer from 'multer'
 import fetch from 'node-fetch'
 import dotenv from 'dotenv'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { fileURLToPath } from 'url'
+import rateLimit from 'express-rate-limit'
+import crypto from 'crypto'
+
+// Import our secure upload middleware
+import { secureUpload, handleUploadErrors } from './middleware/secureUpload.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -19,12 +23,32 @@ if (fs.existsSync(rootEnv)) dotenv.config({ path: rootEnv })
 const app = express()
 const port = process.env.PORT || 4000
 
+// SECURITY: Rate limiting middleware
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+})
+
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 uploads per windowMs
+  message: { error: 'Too many upload attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+})
+
+// Apply rate limiting
+app.use('/api', globalLimiter)
+app.use('/api/upload', uploadLimiter)
+
 app.use(cors({ origin: ['http://localhost:5173'], credentials: true }))
 app.use(express.json({ limit: '20mb' }))
 
 const TMP_ROOT = path.join(__dirname, '../.tmp')
 fs.mkdirSync(TMP_ROOT, { recursive: true })
-const upload = multer({ dest: TMP_ROOT })
 
 // ===== Auth (AAD access token validation) =====
 // NOTE: In multi-tenant mode, do NOT tie validation to a single tenant.
@@ -196,25 +220,44 @@ async function uploadAttachment(graphToken, itemId, name, filePath) {
 // ===== Routes =====
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
-app.post('/api/upload', requireAuth, upload.array('files'), async (req, res) => {
+// SECURITY: Updated upload route with secure file handling
+app.post('/api/upload', requireAuth, secureUpload.array('files'), async (req, res) => {
   try {
     const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const batchDir = path.join(TMP_ROOT, batchId)
-    fs.mkdirSync(batchDir, { recursive: true })
+
+    // Create batch directory with proper permissions
+    await fs.promises.mkdir(batchDir, { recursive: true, mode: 0o700 })
+
     const results = []
     for (const f of req.files || []) {
-      const data = await analyzeReceipt(f.path)
-      const dest = path.join(batchDir, f.originalname)
-      fs.renameSync(f.path, dest)
-      results.push({ file: f.originalname, data })
+      // SECURITY: Use sanitized filename instead of originalname
+      const secureFilename = f.secureFilename || `${crypto.randomUUID()}.tmp`
+      const dest = path.join(batchDir, secureFilename)
+
+      // Move file using async operation
+      await fs.promises.rename(f.path, dest)
+
+      // Process with OCR
+      const data = await analyzeReceipt(dest)
+
+      results.push({
+        file: f.originalname, // Still show original name to user
+        secureFile: secureFilename, // Track secure filename internally
+        data
+      })
     }
+
     const fields = results[0]?.data || {}
     res.json({ results, fields, batchId })
   } catch (e) {
-    console.error(e)
+    console.error('Upload error:', e)
     res.status(500).json({ message: e.message })
   }
 })
+
+// Add upload error handling middleware
+app.use('/api/upload', handleUploadErrors)
 
 app.post('/api/submit', requireAuth, async (req, res) => {
   try {
@@ -226,12 +269,17 @@ app.post('/api/submit', requireAuth, async (req, res) => {
     if (batchId) {
       const batchDir = path.join(TMP_ROOT, batchId)
       if (fs.existsSync(batchDir)) {
-        const files = fs.readdirSync(batchDir)
+        const files = await fs.promises.readdir(batchDir)
         for (const name of files) {
-          await uploadAttachment(token, itemId, name, path.join(batchDir, name))
+          const filePath = path.join(batchDir, name)
+          await uploadAttachment(token, itemId, name, filePath)
         }
-        for (const name of files) fs.unlinkSync(path.join(batchDir, name))
-        fs.rmdirSync(batchDir)
+
+        // Clean up files asynchronously
+        for (const name of files) {
+          await fs.promises.unlink(path.join(batchDir, name))
+        }
+        await fs.promises.rmdir(batchDir)
       }
     }
 
@@ -239,17 +287,26 @@ app.post('/api/submit', requireAuth, async (req, res) => {
       const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/)
       if (m) {
         const tmp = path.join(TMP_ROOT, `sig-${Date.now()}.png`)
-        fs.writeFileSync(tmp, Buffer.from(m[1], 'base64'))
+        await fs.promises.writeFile(tmp, Buffer.from(m[1], 'base64'))
         await uploadAttachment(token, itemId, 'signature.png', tmp)
-        fs.unlinkSync(tmp)
+        await fs.promises.unlink(tmp)
       }
     }
 
     res.json({ ok: true, itemId })
   } catch (e) {
-    console.error(e)
+    console.error('Submit error:', e)
     res.status(500).json({ message: e.message })
   }
 })
 
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err)
+  res.status(500).json({ message: 'Internal server error' })
+})
+
 app.listen(port, () => console.log(`API listening on :${port}`))
+
+export default app
