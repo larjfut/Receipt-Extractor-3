@@ -1,0 +1,22 @@
+{
+  "name": "receipt-extractor",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/server"
+  ],
+  "scripts": {
+    "dev": "npm-run-all -p server web",
+    "dev:mock": "npm-run-all -p mock web:mock",
+    "server": "npm --prefix apps/server run dev",
+    "web": "npm --prefix apps/web run dev",
+    "web:mock": "cross-env VITE_API_PORT=5001 npm --prefix apps/web run dev",
+    "mock": "python3 apps/mock-server/main.py",
+    "build": "npm --prefix apps/web run build",
+    "start": "npm --prefix apps/server run start"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "cross-env": "^7.0.3"
+  }
+}
