@@ -1,4 +1,5 @@
-import fs from "fs";
+import fs, { promises as fsp } from "fs";
+import os from "os";
 import path from "path";
 import express from "express";
 import cors from "cors";
@@ -249,11 +250,27 @@ async function createListItem(graphToken, fields) {
   return r.json()
 }
 
+function validateInputForSignature(input, { maxBytes = 5 * 1024 * 1024 } = {}) {
+  if (input == null) throw new Error('INVALID_SIGNATURE_INPUT');
+  let buf;
+  if (Buffer.isBuffer(input) || input instanceof Uint8Array) {
+    buf = Buffer.from(input);
+  } else if (typeof input === 'string') {
+    buf = Buffer.from(input, 'utf8');
+  } else {
+    throw new Error('INVALID_SIGNATURE_TYPE');
+  }
+  if (buf.byteLength === 0 || buf.byteLength > maxBytes) {
+    throw new Error('INVALID_SIGNATURE_SIZE');
+  }
+  return buf;
+}
+
 async function uploadAttachment(graphToken, itemId, name, filePath) {
   const SITE_ID = process.env.SITE_ID;
   const LIST_ID = process.env.LIST_ID;
   if (!graphToken || !SITE_ID || !LIST_ID) return { name };
-  const b = fs.readFileSync(filePath);
+  const b = await fsp.readFile(filePath);
   const r = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${SITE_ID}/lists/${LIST_ID}/items/${itemId}/driveItem/children/${encodeURIComponent(
       name,
@@ -372,62 +389,77 @@ app.post(
 app.use("/api/upload", handleUploadErrors);
 
 app.post("/api/submit", requireAuth, async (req, res) => {
+  const requestId = crypto.randomUUID();
+  const tempBase = path.join(os.tmpdir(), 'receipt-extractor', requestId);
+  await fsp.mkdir(tempBase, { recursive: true, mode: 0o700 });
   try {
-    const { fields, signatureDataUrl, batchId } = req.body || {}
-    const token = await getGraphToken()
-    const item = await createListItem(token, fields || {})
+    const { fields, signatureDataUrl, batchId } = req.body || {};
+    const token = await getGraphToken();
+    const item = await createListItem(token, fields || {});
     const itemId =
-      item?.id || item?.value?.id || item?.name || `mock-${Date.now()}`
+      item?.id || item?.value?.id || item?.name || `mock-${Date.now()}`;
 
     if (batchId) {
       if (!BATCH_ID_REGEX.test(batchId)) {
-        return res.status(400).json({ message: "Invalid batchId" })
+        return res.status(400).json({ message: "Invalid batchId" });
       }
-      const batchDir = path.resolve(TMP_ROOT, batchId)
-      if (!batchDir.startsWith(TMP_ROOT + path.sep)) {
-        return res.status(400).json({ message: "Invalid batchId" })
+      const src = path.resolve(TMP_ROOT, batchId);
+      if (!src.startsWith(TMP_ROOT + path.sep)) {
+        return res.status(400).json({ message: "Invalid batchId" });
       }
-      if (fs.existsSync(batchDir)) {
-        const files = await fs.promises.readdir(batchDir)
+      if (fs.existsSync(src)) {
+        const batchDir = path.join(tempBase, 'batch');
+        await fsp.mkdir(batchDir, { recursive: true });
+        await fsp.rename(src, batchDir);
+        const files = await fsp.readdir(batchDir);
         for (const name of files) {
-          const filePath = path.join(batchDir, name)
-          await uploadAttachment(token, itemId, name, filePath)
+          const filePath = path.join(batchDir, name);
+          await uploadAttachment(token, itemId, name, filePath);
         }
-
-        // Clean up files asynchronously
-        for (const name of files) {
-          await fs.promises.unlink(path.join(batchDir, name))
-        }
-        await fs.promises.rm(batchDir, { recursive: true, force: true })
       }
     }
 
-    if (signatureDataUrl?.startsWith("data:image/png;base64,")) {
-      const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/)
-      if (m) {
-        const maxSize = 100 * 1024 // 100KB
-        if (Buffer.byteLength(m[1], 'base64') > maxSize) {
-          return res.status(400).json({ message: 'Signature too large' })
-        }
-
-        const tmp = path.join(TMP_ROOT, `sig-${Date.now()}.png`)
-        await fs.promises.writeFile(tmp, Buffer.from(m[1], "base64"))
-        await uploadAttachment(token, itemId, "signature.png", tmp)
-        await fs.promises.unlink(tmp)
+    if (signatureDataUrl) {
+      const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
+      if (!m) {
+        return res.status(400).json({ message: 'Invalid signature' });
       }
+      const maxSize = 100 * 1024; // 100KB
+      let safeContent;
+      try {
+        safeContent = validateInputForSignature(
+          Buffer.from(m[1], 'base64'),
+          { maxBytes: maxSize }
+        );
+      } catch {
+        return res.status(400).json({ message: 'Invalid signature' });
+      }
+      const tmp = path.join(tempBase, `signature.png`);
+      await fsp.writeFile(tmp, safeContent);
+      await uploadAttachment(token, itemId, "signature.png", tmp);
     }
 
-    res.json({ ok: true, itemId })
+    res.json({ ok: true, itemId });
   } catch (e) {
-    console.error("Submit error:", e)
-    const status =
-      e.message.startsWith('Invalid field') ||
-      e.message.startsWith('Invalid type')
-        ? 400
-        : 500
-    res.status(status).json({ message: e.message })
+    console.error('Submit error', {
+      message: e?.message,
+      stack: e?.stack,
+      timestamp: new Date().toISOString(),
+      userId: req.user && req.user.id,
+      requestId
+    });
+    return res.status(500).json({
+      message: 'Internal server error',
+      requestId
+    });
+  } finally {
+    try {
+      await fsp.rm(tempBase, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+    } catch (e) {
+      if (e && e.code !== 'ENOENT') console.warn('cleanup failed', { requestId, code: e.code });
+    }
   }
-})
+});
 
 // Global error handler
 app.use((err, req, res, next) => {
