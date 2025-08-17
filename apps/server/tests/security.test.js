@@ -1,7 +1,21 @@
-import request from "supertest";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import request from "supertest"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+import { jest } from '@jest/globals'
+
+await jest.unstable_mockModule(
+  'file-type',
+  () => ({
+    fileTypeFromBuffer: async buffer => {
+      const str = buffer.toString()
+      if (str.startsWith('%PDF')) return { mime: 'application/pdf' }
+      if (str.includes('fake-image-data')) return { mime: 'image/jpeg' }
+      return null
+    }
+  }),
+  { virtual: true }
+)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,7 +85,7 @@ describe("File Upload Security Tests", () => {
     });
   });
 
-  describe("File Type Validation", () => {
+    describe("File Type Validation", () => {
     test("should reject executable files", async () => {
       const response = await request(app)
         .post("/api/upload")
@@ -99,15 +113,24 @@ describe("File Upload Security Tests", () => {
       expect(response.body.results[0].file).toBe("receipt.jpg");
     });
 
-    test("should accept valid PDF files", async () => {
-      const response = await request(app)
-        .post("/api/upload")
-        .attach("files", testPdfBuffer, "receipt.pdf")
-        .expect(200);
+      test("should accept valid PDF files", async () => {
+        const response = await request(app)
+          .post("/api/upload")
+          .attach("files", testPdfBuffer, "receipt.pdf")
+          .expect(200);
 
-      expect(response.body.results[0].file).toBe("receipt.pdf");
+        expect(response.body.results[0].file).toBe("receipt.pdf");
+      });
+
+      test('should reject files with spoofed MIME type', async () => {
+        const response = await request(app)
+          .post('/api/upload')
+          .attach('files', Buffer.from('plain text'), 'fake.jpg')
+          .expect(400)
+
+        expect(response.body.message).toContain('not allowed')
+      })
     });
-  });
 
   describe("File Size Limits", () => {
     test("should reject files that are too large", async () => {
