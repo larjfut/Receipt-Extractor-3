@@ -98,8 +98,10 @@ if (process.env.NODE_ENV === "production") {
 }
 app.use(express.json({ limit: "20mb" }));
 
-const TMP_ROOT = path.join(__dirname, "../.tmp");
-fs.mkdirSync(TMP_ROOT, { recursive: true });
+const TMP_ROOT = path.join(__dirname, "../.tmp")
+fs.mkdirSync(TMP_ROOT, { recursive: true })
+
+const BATCH_ID_REGEX = /^batch-[0-9]+-[a-z0-9]+$/
 
 // Initialize OCR service
 const ocrService = new OCRService(
@@ -371,31 +373,37 @@ app.use("/api/upload", handleUploadErrors);
 
 app.post("/api/submit", requireAuth, async (req, res) => {
   try {
-    const { fields, signatureDataUrl, batchId } = req.body || {};
-    const token = await getGraphToken();
-    const item = await createListItem(token, fields || {});
+    const { fields, signatureDataUrl, batchId } = req.body || {}
+    const token = await getGraphToken()
+    const item = await createListItem(token, fields || {})
     const itemId =
-      item?.id || item?.value?.id || item?.name || `mock-${Date.now()}`;
+      item?.id || item?.value?.id || item?.name || `mock-${Date.now()}`
 
     if (batchId) {
-      const batchDir = path.join(TMP_ROOT, batchId);
+      if (!BATCH_ID_REGEX.test(batchId)) {
+        return res.status(400).json({ message: "Invalid batchId" })
+      }
+      const batchDir = path.resolve(TMP_ROOT, batchId)
+      if (!batchDir.startsWith(TMP_ROOT + path.sep)) {
+        return res.status(400).json({ message: "Invalid batchId" })
+      }
       if (fs.existsSync(batchDir)) {
-        const files = await fs.promises.readdir(batchDir);
+        const files = await fs.promises.readdir(batchDir)
         for (const name of files) {
-          const filePath = path.join(batchDir, name);
-          await uploadAttachment(token, itemId, name, filePath);
+          const filePath = path.join(batchDir, name)
+          await uploadAttachment(token, itemId, name, filePath)
         }
 
         // Clean up files asynchronously
         for (const name of files) {
-          await fs.promises.unlink(path.join(batchDir, name));
+          await fs.promises.unlink(path.join(batchDir, name))
         }
         await fs.promises.rm(batchDir, { recursive: true, force: true })
       }
     }
 
     if (signatureDataUrl?.startsWith("data:image/png;base64,")) {
-      const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
+      const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/)
       if (m) {
         const maxSize = 100 * 1024 // 100KB
         if (Buffer.byteLength(m[1], 'base64') > maxSize) {

@@ -186,7 +186,7 @@ describe("Submit Endpoint", () => {
         total: "12.34",
         transactionDate: "2024-01-01",
       },
-      batchId: "test-batch-123",
+      batchId: "batch-123-abc",
     };
 
     const response = await request(app)
@@ -224,4 +224,31 @@ describe("Submit Endpoint", () => {
 
     expect(response.body.message).toContain("Invalid type")
   })
-});
+
+  test('should reject path traversal in batchId', async () => {
+    const response = await request(app)
+      .post('/api/submit')
+      .send({ batchId: '../etc/passwd', fields: {} })
+      .expect(400)
+
+    expect(response.body.message).toContain('Invalid batchId')
+  })
+
+  test('should reject absolute batchId path', async () => {
+    const response = await request(app)
+      .post('/api/submit')
+      .send({ batchId: '/etc/passwd', fields: {} })
+      .expect(400)
+
+    expect(response.body.message).toContain('Invalid batchId')
+  })
+
+  test('should reject windows style traversal', async () => {
+    const response = await request(app)
+      .post('/api/submit')
+      .send({ batchId: '..\\..\\evil', fields: {} })
+      .expect(400)
+
+    expect(response.body.message).toContain('Invalid batchId')
+  })
+})
