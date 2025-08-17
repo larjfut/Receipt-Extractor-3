@@ -112,7 +112,7 @@ async function validateAADToken(token) {
 }
 
 function requireAuth(req, res, next) {
-  if (process.env.SKIP_AUTH === "true") return next()
+  if (process.env.NODE_ENV === "test") return next()
   const h = req.headers.authorization || ""
   const token = h.startsWith("Bearer ") ? h.slice(7) : null
   if (!token) return res.status(401).json({ message: "Missing bearer token" })
@@ -144,9 +144,15 @@ async function getGraphToken() {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
     },
-  );
-  const j = await r.json();
-  return j.access_token;
+  )
+
+  if (!r.ok) {
+    const errorText = await r.text()
+    throw new Error(`Token request failed: ${r.status} ${errorText}`)
+  }
+
+  const j = await r.json()
+  return j.access_token
 }
 
 async function createListItem(graphToken, fields) {
@@ -284,10 +290,7 @@ app.post(
 
       res.status(500).json({
         message: "Upload processing failed",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error"
+        error: process.env.NODE_ENV === "development" ? error.message : undefined
       })
     }
   }
@@ -324,10 +327,15 @@ app.post("/api/submit", requireAuth, async (req, res) => {
     if (signatureDataUrl?.startsWith("data:image/png;base64,")) {
       const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
       if (m) {
-        const tmp = path.join(TMP_ROOT, `sig-${Date.now()}.png`);
-        await fs.promises.writeFile(tmp, Buffer.from(m[1], "base64"));
-        await uploadAttachment(token, itemId, "signature.png", tmp);
-        await fs.promises.unlink(tmp);
+        const maxSize = 100 * 1024 // 100KB
+        if (Buffer.byteLength(m[1], 'base64') > maxSize) {
+          return res.status(400).json({ message: 'Signature too large' })
+        }
+
+        const tmp = path.join(TMP_ROOT, `sig-${Date.now()}.png`)
+        await fs.promises.writeFile(tmp, Buffer.from(m[1], "base64"))
+        await uploadAttachment(token, itemId, "signature.png", tmp)
+        await fs.promises.unlink(tmp)
       }
     }
 
