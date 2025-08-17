@@ -203,10 +203,32 @@ async function getGraphToken() {
   return j.access_token
 }
 
+const FIELD_SCHEMA = {
+  vendor: 'string',
+  total: 'string',
+  transactionDate: 'string',
+  merchantAddress: 'string',
+  merchantPhone: 'string',
+  subtotal: 'string',
+  tax: 'string'
+}
+
+function validateFields(fields) {
+  const sanitized = {}
+  for (const [k, v] of Object.entries(fields || {})) {
+    const expected = FIELD_SCHEMA[k]
+    if (!expected) throw new Error(`Invalid field: ${k}`)
+    if (typeof v !== expected) throw new Error(`Invalid type for ${k}: expected ${expected}`)
+    sanitized[k] = v
+  }
+  return sanitized
+}
+
 async function createListItem(graphToken, fields) {
-  const SITE_ID = process.env.SITE_ID;
-  const LIST_ID = process.env.LIST_ID;
-  if (!graphToken || !SITE_ID || !LIST_ID) return { id: `mock-${Date.now()}` };
+  const sanitizedFields = validateFields(fields)
+  const SITE_ID = process.env.SITE_ID
+  const LIST_ID = process.env.LIST_ID
+  if (!graphToken || !SITE_ID || !LIST_ID) return { id: `mock-${Date.now()}` }
   const r = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${SITE_ID}/lists/${LIST_ID}/items`,
     {
@@ -215,14 +237,14 @@ async function createListItem(graphToken, fields) {
         Authorization: `Bearer ${graphToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ fields }),
+      body: JSON.stringify({ fields: sanitizedFields }),
     },
-  );
+  )
   if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Create item failed: ${r.status} ${t}`);
+    const t = await r.text()
+    throw new Error(`Create item failed: ${r.status} ${t}`)
   }
-  return r.json();
+  return r.json()
 }
 
 async function uploadAttachment(graphToken, itemId, name, filePath) {
@@ -387,12 +409,17 @@ app.post("/api/submit", requireAuth, async (req, res) => {
       }
     }
 
-    res.json({ ok: true, itemId });
+    res.json({ ok: true, itemId })
   } catch (e) {
-    console.error("Submit error:", e);
-    res.status(500).json({ message: e.message });
+    console.error("Submit error:", e)
+    const status =
+      e.message.startsWith('Invalid field') ||
+      e.message.startsWith('Invalid type')
+        ? 400
+        : 500
+    res.status(status).json({ message: e.message })
   }
-});
+})
 
 // Global error handler
 app.use((err, req, res, next) => {
