@@ -221,25 +221,40 @@ export default function UploadPage() {
       {busy && (
         <div
           style={{
-            padding: '12px',
-            backgroundColor: '#fff3cd',
-            border: '1px solid #ffc107',
+            padding: '16px',
+            backgroundColor: '#e3f2fd',
+            border: '1px solid #2196f3',
             borderRadius: '4px',
             marginBottom: '16px',
+            textAlign: 'center'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px'
+            }}
+          >
             <div
               style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid #ffc107',
-                borderTop: '2px solid transparent',
+                width: '20px',
+                height: '20px',
+                border: '3px solid #2196f3',
+                borderTop: '3px solid transparent',
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite',
               }}
             ></div>
-            <span>Processing files and extracting data...</span>
+            <div>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                Processing Receipt
+              </div>
+              <div style={{ fontSize: '14px', color: '#666' }}>
+                Extracting data with OCR technology...
+              </div>
+            </div>
           </div>
         </div>
       )}
