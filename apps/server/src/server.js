@@ -162,7 +162,7 @@ async function validateAADToken(token) {
 }
 
 function requireAuth(req, res, next) {
-  if (process.env.NODE_ENV === "test") return next()
+  if (process.env.AUTH_BYPASS === "true") return next()
   const h = req.headers.authorization || ""
   const token = h.startsWith("Bearer ") ? h.slice(7) : null
   if (!token) return res.status(401).json({ message: "Missing bearer token" })

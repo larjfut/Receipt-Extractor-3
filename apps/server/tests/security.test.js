@@ -7,8 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Mock environment for testing
-process.env.SKIP_AUTH = "true";
-process.env.NODE_ENV = "test";
+process.env.AUTH_BYPASS = "true"
+process.env.NODE_ENV = "test"
 
 // Import app after setting env
 const { default: app } = await import("../src/server.js");

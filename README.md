@@ -24,6 +24,7 @@ Fill in root `.env`:
 - `SCOPE_NAME` — Scope name on API app, e.g., `access_as_user`
 - `SITE_ID`, `LIST_ID` — Your SharePoint targets
 - `AZURE_DOC_INTELLIGENCE_ENDPOINT`, `AZURE_DOC_INTELLIGENCE_KEY`
+- `AUTH_BYPASS` — set to `true` only for local tests to disable auth (never set in production)
 
 Fill in `apps/web/.env`:
 ```
