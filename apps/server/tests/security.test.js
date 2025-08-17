@@ -206,4 +206,22 @@ describe("Submit Endpoint", () => {
 
     expect(response.body.ok).toBe(true);
   });
+
+  test("should reject submit with invalid field key", async () => {
+    const response = await request(app)
+      .post("/api/submit")
+      .send({ fields: { vendor: "Store", bad: "nope" } })
+      .expect(400)
+
+    expect(response.body.message).toContain("Invalid field")
+  })
+
+  test("should reject submit with type mismatch", async () => {
+    const response = await request(app)
+      .post("/api/submit")
+      .send({ fields: { vendor: 123 } })
+      .expect(400)
+
+    expect(response.body.message).toContain("Invalid type")
+  })
 });
