@@ -1,8 +1,8 @@
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import multer from "multer";
-import { fileURLToPath } from "url";
+import fs from "fs"
+import path from "path"
+import crypto from "crypto"
+import multer from "multer"
+import { fileURLToPath } from "url"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,13 +45,23 @@ function sanitizeFilename(originalname) {
 }
 
 /**
- * Validate file content matches declared MIME type
+ * Validate file content using file-type library
  * @param {Object} file - Multer file object
- * @returns {boolean} - Whether file is valid
+ * @returns {Promise<boolean>} - Whether file is valid
  */
-function validateFileContent(file) {
-  // Basic MIME type validation
-  return ALLOWED_MIME_TYPES.includes(file.mimetype);
+async function validateFileContent(file) {
+  try {
+    const buffer = file.path
+      ? await fs.promises.readFile(file.path)
+      : file.buffer
+    const { fileTypeFromBuffer } = await import('file-type')
+    const type = await fileTypeFromBuffer(buffer)
+    if (!type) return false
+    return ALLOWED_MIME_TYPES.includes(type.mime)
+  } catch (err) {
+    console.error('File validation failed', err)
+    return false
+  }
 }
 
 // Configure secure multer instance
@@ -62,21 +72,20 @@ export const secureUpload = multer({
     files: MAX_FILES,
     fieldSize: 1024 * 1024, // 1MB for text fields
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: async (req, file, cb) => {
     try {
-      // Validate MIME type
-      if (!validateFileContent(file)) {
-        return cb(new Error("File type not allowed"), false);
+      const valid = await validateFileContent(file)
+      if (!valid) {
+        return cb(new Error("File type not allowed"), false)
       }
 
-      // Generate secure filename and store on file object
-      file.secureFilename = sanitizeFilename(file.originalname);
-      cb(null, true);
+      file.secureFilename = sanitizeFilename(file.originalname)
+      cb(null, true)
     } catch (error) {
-      cb(error, false);
+      cb(error, false)
     }
   },
-});
+})
 
 // Error handler for multer errors
 export function handleUploadErrors(err, req, res, next) {
