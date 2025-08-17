@@ -21,25 +21,48 @@ dotenv.config();
 const rootEnv = path.resolve(__dirname, "../../../.env");
 if (fs.existsSync(rootEnv)) dotenv.config({ path: rootEnv });
 
+// Environment variable validation
+const requiredEnvVars = [
+  "TENANT_ID",
+  "CLIENT_ID",
+  "CLIENT_SECRET",
+  "APPLICATION_ID_URI",
+]
+
+if (process.env.NODE_ENV !== "test") {
+  const missingVars = requiredEnvVars.filter((varName) => !process.env[varName])
+  if (missingVars.length > 0) {
+    console.error("Missing required environment variables:", missingVars)
+    console.error("Please check your .env file configuration")
+    if (process.env.NODE_ENV === "production") {
+      process.exit(1)
+    }
+  }
+}
+
 const app = express();
 const port = process.env.PORT || 4000;
 
 // SECURITY: Rate limiting middleware
+// Global rate limiter with configurable limits
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: parseInt(process.env.GLOBAL_RATE_LIMIT) || 100,
   message: { error: "Too many requests, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
-});
+  // Add IP forwarding for Vercel/proxy environments
+  trustProxy: process.env.NODE_ENV === "production",
+})
 
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 uploads per windowMs
+  max: parseInt(process.env.UPLOAD_RATE_LIMIT) || 10,
   message: { error: "Too many upload attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
-});
+  trustProxy: process.env.NODE_ENV === "production",
+})
 
 // Apply rate limiting (disabled during tests)
 if (process.env.NODE_ENV !== "test") {
@@ -47,7 +70,32 @@ if (process.env.NODE_ENV !== "test") {
   app.use("/api/upload", uploadLimiter);
 }
 
-app.use(cors({ origin: ["http://localhost:5173"], credentials: true }));
+const allowedOrigins =
+  process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:5173"]
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  }),
+)
+
+// Security headers for production
+if (process.env.NODE_ENV === "production") {
+  app.use((req, res, next) => {
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    )
+    res.setHeader("X-Content-Type-Options", "nosniff")
+    res.setHeader("X-Frame-Options", "DENY")
+    res.setHeader("X-XSS-Protection", "1; mode=block")
+    res.setHeader(
+      "Referrer-Policy",
+      "strict-origin-when-cross-origin",
+    )
+    next()
+  })
+}
 app.use(express.json({ limit: "20mb" }));
 
 const TMP_ROOT = path.join(__dirname, "../.tmp");
@@ -320,7 +368,7 @@ app.post("/api/submit", requireAuth, async (req, res) => {
         for (const name of files) {
           await fs.promises.unlink(path.join(batchDir, name));
         }
-        await fs.promises.rmdir(batchDir);
+        await fs.promises.rm(batchDir, { recursive: true, force: true })
       }
     }
 
