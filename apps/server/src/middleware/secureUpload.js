@@ -7,8 +7,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TMP_ROOT = path.join(__dirname, "../../.tmp");
-fs.mkdirSync(TMP_ROOT, { recursive: true });
+const TMP_ROOT = path.join(__dirname, "../../.tmp")
+fs.mkdirSync(TMP_ROOT, { recursive: true, mode: 0o700 })
 
 // Allowed file extensions and MIME types
 const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".pdf"];
