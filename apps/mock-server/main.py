@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify
+import os
+from flask import Flask, jsonify
 from time import sleep
 
 app = Flask(__name__)
@@ -23,4 +24,6 @@ def submit():
     return jsonify({"ok": True, "itemId": "mock-1234"})
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    # Only enable debug in development environment
+    debug_mode = os.getenv('FLASK_ENV', 'production') == 'development'
+    app.run(port=5001, debug=debug_mode)

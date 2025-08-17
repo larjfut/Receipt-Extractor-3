@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import Upload from './pages/UploadPage.jsx'
 import Review from './pages/ReviewPage.jsx'
 import Signature from './pages/SignaturePage.jsx'
@@ -133,7 +133,8 @@ export default function App() {
 
 function NavLink({ to, children }) {
   const navigate = useNavigate()
-  const isActive = window.location.pathname === to
+  const location = useLocation()
+  const isActive = location.pathname === to
 
   return (
     <button
