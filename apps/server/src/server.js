@@ -11,6 +11,7 @@ import crypto from "crypto";
 
 // Import our secure upload middleware
 import { secureUpload, handleUploadErrors } from "./middleware/secureUpload.js";
+import { OCRService } from "./services/ocrService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,12 @@ app.use(express.json({ limit: "20mb" }));
 
 const TMP_ROOT = path.join(__dirname, "../.tmp");
 fs.mkdirSync(TMP_ROOT, { recursive: true });
+
+// Initialize OCR service
+const ocrService = new OCRService(
+  process.env.AZURE_DOC_INTELLIGENCE_ENDPOINT,
+  process.env.AZURE_DOC_INTELLIGENCE_KEY
+);
 
 // ===== Auth (AAD access token validation) =====
 // NOTE: In multi-tenant mode, do NOT tie validation to a single tenant.
@@ -105,67 +112,16 @@ async function validateAADToken(token) {
 }
 
 function requireAuth(req, res, next) {
-  if (process.env.SKIP_AUTH === "true") return next();
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
-  if (!token) return res.status(401).json({ message: "Missing bearer token" });
+  if (process.env.SKIP_AUTH === "true") return next()
+  const h = req.headers.authorization || ""
+  const token = h.startsWith("Bearer ") ? h.slice(7) : null
+  if (!token) return res.status(401).json({ message: "Missing bearer token" })
   validateAADToken(token)
     .then(() => next())
-    .catch((err) => {
-      console.error("Auth error:", err.message);
-      res.status(401).json({ message: "Unauthorized" });
-    });
-}
-
-// ===== OCR with Azure Document Intelligence =====
-const AZ_EP = process.env.AZURE_DOC_INTELLIGENCE_ENDPOINT;
-const AZ_KEY = process.env.AZURE_DOC_INTELLIGENCE_KEY;
-
-async function analyzeReceipt(filePath) {
-  if (!AZ_EP || !AZ_KEY) {
-    // Fallback mock
-    return {
-      vendor: "Demo Store",
-      total: "12.34",
-      transactionDate: new Date().toISOString().slice(0, 10),
-    };
-  }
-  const url = `${AZ_EP}/formrecognizer/documentModels/prebuilt-receipt:analyze?api-version=2023-07-31`;
-  const body = fs.readFileSync(filePath);
-  const start = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Ocp-Apim-Subscription-Key": AZ_KEY,
-      "Content-Type": "application/octet-stream",
-    },
-    body,
-  });
-  if (start.status !== 202) {
-    const text = await start.text();
-    throw new Error(`Analyze start failed: ${start.status} ${text}`);
-  }
-  const op = start.headers.get("operation-location");
-  for (let i = 0; i < 12; i++) {
-    await new Promise((r) => setTimeout(r, 1500));
-    const res = await fetch(op, {
-      headers: { "Ocp-Apim-Subscription-Key": AZ_KEY },
-    });
-    const j = await res.json();
-    if (j.status === "succeeded") {
-      try {
-        const doc = j?.analyzeResult?.documents?.[0];
-        const f = doc.fields || {};
-        return {
-          vendor: f?.MerchantName?.content || f?.VendorName?.content || "",
-          total: f?.Total?.content || "",
-          transactionDate: f?.TransactionDate?.content || "",
-        };
-      } catch {
-        return { vendor: "", total: "", transactionDate: "" };
-      }
-    }
-  }
-  throw new Error("Analyze timed out");
+    .catch(err => {
+      console.error("Auth error:", err.message)
+      res.status(401).json({ message: "Unauthorized" })
+    })
 }
 
 // ===== Graph helpers (app-only, client credentials) =====
@@ -238,53 +194,104 @@ async function uploadAttachment(graphToken, itemId, name, filePath) {
 }
 
 // ===== Routes =====
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.get("/api/health", (_req, res) => res.json({ ok: true }))
 
-// SECURITY: Updated upload route with secure file handling
+// Add OCR health check endpoint
+app.get("/api/health/ocr", async (req, res) => {
+  try {
+    const health = await ocrService.healthCheck()
+    res.json(health)
+  } catch (error) {
+    res.status(500).json({
+      healthy: false,
+      reason: error.message
+    })
+  }
+})
+
+// SECURITY: Updated upload route with async processing
 app.post(
   "/api/upload",
   requireAuth,
   secureUpload.array("files"),
   async (req, res) => {
     try {
-      const files = req.files || [];
+      const files = req.files || []
       if (files.length === 0) {
-        return res.status(400).json({ message: "No files uploaded" });
+        return res.status(400).json({ message: "No files uploaded" })
       }
 
-      const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const batchDir = path.join(TMP_ROOT, batchId);
+      const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const batchDir = path.join(TMP_ROOT, batchId)
 
-      // Create batch directory with proper permissions
-      await fs.promises.mkdir(batchDir, { recursive: true, mode: 0o700 });
+      await fs.promises.mkdir(batchDir, { recursive: true, mode: 0o700 })
 
-      const results = [];
+      const processingPromises = []
+
       for (const f of files) {
-        // SECURITY: Use sanitized filename instead of originalname
-        const secureFilename = f.secureFilename || `${crypto.randomUUID()}.tmp`;
-        const dest = path.join(batchDir, secureFilename);
+        const secureFilename = f.secureFilename || `${crypto.randomUUID()}.tmp`
+        const dest = path.join(batchDir, secureFilename)
 
-        // Move file using async operation
-        await fs.promises.rename(f.path, dest);
+        await fs.promises.rename(f.path, dest)
 
-        // Process with OCR
-        const data = await analyzeReceipt(dest);
+        const ocrPromise = ocrService
+          .analyzeReceipt(dest)
+          .then(data => ({
+            file: f.originalname,
+            secureFile: secureFilename,
+            data
+          }))
+          .catch(error => {
+            console.error(`OCR failed for ${f.originalname}:`, error.message)
+            return {
+              file: f.originalname,
+              secureFile: secureFilename,
+              data: {
+                vendor: "",
+                total: "",
+                transactionDate: "",
+                error: "OCR processing failed"
+              }
+            }
+          })
 
-        results.push({
-          file: f.originalname, // Still show original name to user
-          secureFile: secureFilename, // Track secure filename internally
-          data,
-        });
+        processingPromises.push(ocrPromise)
       }
 
-      const fields = results[0]?.data || {};
-      res.json({ results, fields, batchId });
-    } catch (e) {
-      console.error("Upload error:", e);
-      res.status(500).json({ message: e.message });
+      const ocrResults = await Promise.all(processingPromises)
+      const primaryResult = ocrResults.find(r => !r.data.error) || ocrResults[0]
+      const fields = primaryResult?.data || {}
+
+      res.json({
+        results: ocrResults,
+        fields,
+        batchId,
+        processingTime: Date.now() - parseInt(batchId.split("-")[1])
+      })
+    } catch (error) {
+      console.error("Upload error:", error)
+      try {
+        if (req.files) {
+          for (const f of req.files) {
+            if (fs.existsSync(f.path)) {
+              await fs.promises.unlink(f.path)
+            }
+          }
+        }
+      } catch (cleanupError) {
+        console.error("Cleanup error:", cleanupError)
+      }
+
+      res.status(500).json({
+        message: "Upload processing failed",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error"
+      })
     }
-  },
-);
+  }
+)
 
 // Add upload error handling middleware
 app.use("/api/upload", handleUploadErrors);
