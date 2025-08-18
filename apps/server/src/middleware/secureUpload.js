@@ -3,25 +3,26 @@ import path from "path"
 import crypto from "crypto"
 import multer from "multer"
 import { fileURLToPath } from "url"
+import { fileTypeFromBuffer } from "file-type"
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const TMP_ROOT = path.join(__dirname, "../../.tmp")
 fs.mkdirSync(TMP_ROOT, { recursive: true, mode: 0o700 })
 
 // Allowed file extensions and MIME types
-const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".pdf"];
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".pdf"]
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
   "image/gif",
   "application/pdf",
-];
+]
 
 // File size limits
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_FILES = 5;
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILES = 5
 
 /**
  * Sanitize filename to prevent path traversal attacks
@@ -30,18 +31,18 @@ const MAX_FILES = 5;
  */
 function sanitizeFilename(originalname) {
   if (!originalname || typeof originalname !== "string") {
-    throw new Error("Invalid filename");
+    throw new Error("Invalid filename")
   }
 
   // Extract extension and validate
-  const ext = path.extname(originalname).toLowerCase();
+  const ext = path.extname(originalname).toLowerCase()
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
-    throw new Error(`File type ${ext} not allowed`);
+    throw new Error(`File type ${ext} not allowed`)
   }
 
   // Generate cryptographically secure filename
-  const uuid = crypto.randomUUID();
-  return `${uuid}${ext}`;
+  const uuid = crypto.randomUUID()
+  return `${uuid}${ext}`
 }
 
 /**
@@ -54,13 +55,11 @@ async function validateFileContent(file) {
     const buffer = file.path
       ? await fs.promises.readFile(file.path)
       : file.buffer
-    const { fileTypeFromBuffer } = await import('file-type')
     const type = await fileTypeFromBuffer(buffer)
-    if (!type) return false
-    return ALLOWED_MIME_TYPES.includes(type.mime)
+    return type && ALLOWED_MIME_TYPES.includes(type.mime)
   } catch (err) {
-    console.error('File validation failed', err)
-    return false
+    console.error("File validation failed", err)
+    throw err
   }
 }
 
@@ -94,25 +93,25 @@ export function handleUploadErrors(err, req, res, next) {
       case "LIMIT_FILE_SIZE":
         return res.status(413).json({
           message: `File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`,
-        });
+        })
       case "LIMIT_FILE_COUNT":
         return res.status(413).json({
           message: `Too many files. Maximum is ${MAX_FILES} files`,
-        });
+        })
       case "LIMIT_UNEXPECTED_FILE":
         return res.status(400).json({
           message: "Unexpected file field",
-        });
+        })
       default:
         return res.status(400).json({
           message: "File upload error: " + err.message,
-        });
+        })
     }
   }
 
   if (err.message.includes("not allowed") || err.message.includes("Invalid")) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message })
   }
 
-  next(err);
+  next(err)
 }

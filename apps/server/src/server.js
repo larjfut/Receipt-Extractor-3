@@ -1,6 +1,6 @@
-import fs, { promises as fsp } from "fs";
-import os from "os";
-import path from "path";
+import { promises as fsp } from "fs"
+import os from "os"
+import path from "path"
 import express from "express"
 import cors from "cors"
 import fetch from "node-fetch"
@@ -12,16 +12,23 @@ import crypto from "crypto"
 import helmet from "helmet"
 
 // Import our secure upload middleware
-import { secureUpload, handleUploadErrors } from "./middleware/secureUpload.js";
-import { OCRService } from "./services/ocrService.js";
+import { secureUpload, handleUploadErrors } from "./middleware/secureUpload.js"
+import { OCRService } from "./services/ocrService.js"
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Load env from server dir and root
-dotenv.config();
-const rootEnv = path.resolve(__dirname, "../../../.env");
-if (fs.existsSync(rootEnv)) dotenv.config({ path: rootEnv });
+dotenv.config()
+const rootEnv = path.resolve(__dirname, "../../../.env")
+try {
+  await fsp.stat(rootEnv)
+  dotenv.config({ path: rootEnv })
+} catch (err) {
+  if (err.code !== "ENOENT") {
+    console.error("Error loading root .env", err)
+  }
+}
 
 // Environment variable validation
 const requiredEnvVars = [
@@ -56,7 +63,7 @@ if (process.env.NODE_ENV === "production") {
 
 const extraCspSources = (process.env.CSP_EXTRA_SOURCES || "")
   .split(",")
-  .map(s => s.trim())
+  .map((s) => s.trim())
   .filter(Boolean)
 
 const helmetOptions = {
@@ -101,12 +108,13 @@ const uploadLimiter = rateLimit({
 
 // Apply rate limiting (disabled during tests)
 if (process.env.NODE_ENV !== "test") {
-  app.use("/api", globalLimiter);
-  app.use("/api/upload", uploadLimiter);
+  app.use("/api", globalLimiter)
+  app.use("/api/upload", uploadLimiter)
 }
 
-const allowedOrigins =
-  process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:5173"]
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
+  "http://localhost:5173",
+]
 app.use(
   cors({
     origin: allowedOrigins,
@@ -117,66 +125,66 @@ app.use(
 app.use(express.json({ limit: "20mb" }))
 
 const TMP_ROOT = path.join(__dirname, "../.tmp")
-fs.mkdirSync(TMP_ROOT, { recursive: true })
+await fsp.mkdir(TMP_ROOT, { recursive: true })
 
 const BATCH_ID_REGEX = /^batch-[0-9]+-[a-z0-9]+$/
 
 // Initialize OCR service
 const ocrService = new OCRService(
   process.env.AZURE_DOC_INTELLIGENCE_ENDPOINT,
-  process.env.AZURE_DOC_INTELLIGENCE_KEY
-);
+  process.env.AZURE_DOC_INTELLIGENCE_KEY,
+)
 
 // ===== Auth (AAD access token validation) =====
 // NOTE: In multi-tenant mode, do NOT tie validation to a single tenant.
 // We use the 'organizations' JWKS and validate issuer pattern + allowed tenant list.
-const applicationIdUri = process.env.APPLICATION_ID_URI;
-const scopeName = process.env.SCOPE_NAME || "access_as_user";
+const applicationIdUri = process.env.APPLICATION_ID_URI
+const scopeName = process.env.SCOPE_NAME || "access_as_user"
 
 // Optional allow-list of tenants (comma-separated TIDs). If empty, accept any org tenant.
 const allowedTenants = (process.env.ALLOWED_TENANTS || "")
   .split(",")
   .map((s) => s.trim())
-  .filter(Boolean);
+  .filter(Boolean)
 
 // Multi-tenant JWKS across organizational tenants
 const jwks = createRemoteJWKSet(
   new URL(
     "https://login.microsoftonline.com/organizations/discovery/v2.0/keys",
   ),
-);
+)
 
 async function validateAADToken(token) {
   // First verify signature & basic token structure
   const { payload } = await jwtVerify(token, jwks, {
     // Do not set a fixed 'issuer' here; we'll validate it manually to support multi-tenant.
-  });
+  })
 
   // 1) Issuer must be a v2.0 AAD issuer for some tenant (tid)
-  const iss = payload.iss || "";
-  const tid = payload.tid || "";
+  const iss = payload.iss || ""
+  const tid = payload.tid || ""
   if (!/^https:\/\/login\.microsoftonline\.com\/[0-9a-f-]+\/v2\.0$/.test(iss)) {
-    throw new Error("Invalid issuer");
+    throw new Error("Invalid issuer")
   }
   if (!tid) {
-    throw new Error("Missing tid (tenant id)");
+    throw new Error("Missing tid (tenant id)")
   }
   if (allowedTenants.length && !allowedTenants.includes(tid)) {
-    throw new Error("Tenant not allowed");
+    throw new Error("Tenant not allowed")
   }
 
   // 2) Audience must be *your* API (Application ID URI)
   if (payload.aud !== applicationIdUri) {
-    throw new Error(`Invalid audience: expected ${applicationIdUri}`);
+    throw new Error(`Invalid audience: expected ${applicationIdUri}`)
   }
 
   // 3) Must include required delegated scope
-  const scp = (payload.scp || "").split(" ").filter(Boolean);
+  const scp = (payload.scp || "").split(" ").filter(Boolean)
   if (!scp.includes(scopeName)) {
-    throw new Error(`Missing required scope: ${scopeName}`);
+    throw new Error(`Missing required scope: ${scopeName}`)
   }
 
-  return payload;
+  return payload
 }
 
 function requireAuth(req, res, next) {
@@ -186,7 +194,7 @@ function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ message: "Missing bearer token" })
   validateAADToken(token)
     .then(() => next())
-    .catch(err => {
+    .catch((err) => {
       console.error("Auth error:", err.message)
       res.status(401).json({ message: "Unauthorized" })
     })
@@ -195,16 +203,16 @@ function requireAuth(req, res, next) {
 // ===== Graph helpers (app-only, client credentials) =====
 // IMPORTANT: For Graph CC flow, we still use your HOME tenant ID.
 async function getGraphToken() {
-  const TENANT_ID = process.env.TENANT_ID;
-  const CLIENT_ID = process.env.CLIENT_ID;
-  const CLIENT_SECRET = process.env.CLIENT_SECRET;
-  if (!TENANT_ID || !CLIENT_ID || !CLIENT_SECRET) return null;
+  const TENANT_ID = process.env.TENANT_ID
+  const CLIENT_ID = process.env.CLIENT_ID
+  const CLIENT_SECRET = process.env.CLIENT_SECRET
+  if (!TENANT_ID || !CLIENT_ID || !CLIENT_SECRET) return null
   const body = new URLSearchParams({
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
     scope: "https://graph.microsoft.com/.default",
     grant_type: "client_credentials",
-  });
+  })
   const r = await fetch(
     `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
     {
@@ -224,13 +232,13 @@ async function getGraphToken() {
 }
 
 const FIELD_SCHEMA = {
-  vendor: 'string',
-  total: 'string',
-  transactionDate: 'string',
-  merchantAddress: 'string',
-  merchantPhone: 'string',
-  subtotal: 'string',
-  tax: 'string'
+  vendor: "string",
+  total: "string",
+  transactionDate: "string",
+  merchantAddress: "string",
+  merchantPhone: "string",
+  subtotal: "string",
+  tax: "string",
 }
 
 function validateFields(fields) {
@@ -238,7 +246,8 @@ function validateFields(fields) {
   for (const [k, v] of Object.entries(fields || {})) {
     const expected = FIELD_SCHEMA[k]
     if (!expected) throw new Error(`Invalid field: ${k}`)
-    if (typeof v !== expected) throw new Error(`Invalid type for ${k}: expected ${expected}`)
+    if (typeof v !== expected)
+      throw new Error(`Invalid type for ${k}: expected ${expected}`)
     sanitized[k] = v
   }
   return sanitized
@@ -268,26 +277,26 @@ async function createListItem(graphToken, fields) {
 }
 
 function validateInputForSignature(input, { maxBytes = 5 * 1024 * 1024 } = {}) {
-  if (input == null) throw new Error('INVALID_SIGNATURE_INPUT');
-  let buf;
+  if (input == null) throw new Error("INVALID_SIGNATURE_INPUT")
+  let buf
   if (Buffer.isBuffer(input) || input instanceof Uint8Array) {
-    buf = Buffer.from(input);
-  } else if (typeof input === 'string') {
-    buf = Buffer.from(input, 'utf8');
+    buf = Buffer.from(input)
+  } else if (typeof input === "string") {
+    buf = Buffer.from(input, "utf8")
   } else {
-    throw new Error('INVALID_SIGNATURE_TYPE');
+    throw new Error("INVALID_SIGNATURE_TYPE")
   }
   if (buf.byteLength === 0 || buf.byteLength > maxBytes) {
-    throw new Error('INVALID_SIGNATURE_SIZE');
+    throw new Error("INVALID_SIGNATURE_SIZE")
   }
-  return buf;
+  return buf
 }
 
 async function uploadAttachment(graphToken, itemId, name, filePath) {
-  const SITE_ID = process.env.SITE_ID;
-  const LIST_ID = process.env.LIST_ID;
-  if (!graphToken || !SITE_ID || !LIST_ID) return { name };
-  const b = await fsp.readFile(filePath);
+  const SITE_ID = process.env.SITE_ID
+  const LIST_ID = process.env.LIST_ID
+  if (!graphToken || !SITE_ID || !LIST_ID) return { name }
+  const b = await fsp.readFile(filePath)
   const r = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${SITE_ID}/lists/${LIST_ID}/items/${itemId}/driveItem/children/${encodeURIComponent(
       name,
@@ -297,12 +306,12 @@ async function uploadAttachment(graphToken, itemId, name, filePath) {
       headers: { Authorization: `Bearer ${graphToken}` },
       body: b,
     },
-  );
+  )
   if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Attach failed: ${r.status} ${t}`);
+    const t = await r.text()
+    throw new Error(`Attach failed: ${r.status} ${t}`)
   }
-  return r.json();
+  return r.json()
 }
 
 // ===== Routes =====
@@ -316,7 +325,7 @@ app.get("/api/health/ocr", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       healthy: false,
-      reason: error.message
+      reason: error.message,
     })
   }
 })
@@ -336,7 +345,7 @@ app.post(
       const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`
       const batchDir = path.join(TMP_ROOT, batchId)
 
-      await fs.promises.mkdir(batchDir, { recursive: true, mode: 0o700 })
+      await fsp.mkdir(batchDir, { recursive: true, mode: 0o700 })
 
       const processingPromises = []
 
@@ -344,16 +353,16 @@ app.post(
         const secureFilename = f.secureFilename || `${crypto.randomUUID()}.tmp`
         const dest = path.join(batchDir, secureFilename)
 
-        await fs.promises.rename(f.path, dest)
+        await fsp.rename(f.path, dest)
 
         const ocrPromise = ocrService
           .analyzeReceipt(dest)
-          .then(data => ({
+          .then((data) => ({
             file: f.originalname,
             secureFile: secureFilename,
-            data
+            data,
           }))
-          .catch(error => {
+          .catch((error) => {
             console.error(`OCR failed for ${f.originalname}:`, error.message)
             return {
               file: f.originalname,
@@ -362,8 +371,8 @@ app.post(
                 vendor: "",
                 total: "",
                 transactionDate: "",
-                error: "OCR processing failed"
-              }
+                error: "OCR processing failed",
+              },
             }
           })
 
@@ -371,22 +380,28 @@ app.post(
       }
 
       const ocrResults = await Promise.all(processingPromises)
-      const primaryResult = ocrResults.find(r => !r.data.error) || ocrResults[0]
+      const primaryResult =
+        ocrResults.find((r) => !r.data.error) || ocrResults[0]
       const fields = primaryResult?.data || {}
 
       res.json({
         results: ocrResults,
         fields,
         batchId,
-        processingTime: Date.now() - parseInt(batchId.split("-")[1])
+        processingTime: Date.now() - parseInt(batchId.split("-")[1]),
       })
     } catch (error) {
       console.error("Upload error:", error)
       try {
         if (req.files) {
           for (const f of req.files) {
-            if (fs.existsSync(f.path)) {
-              await fs.promises.unlink(f.path)
+            try {
+              await fsp.stat(f.path)
+              await fsp.unlink(f.path)
+            } catch (err) {
+              if (err.code !== "ENOENT") {
+                console.error("Cleanup error:", err)
+              }
             }
           }
         }
@@ -396,96 +411,107 @@ app.post(
 
       res.status(500).json({
         message: "Upload processing failed",
-        error: process.env.NODE_ENV === "development" ? error.message : undefined
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
       })
     }
-  }
+  },
 )
 
 // Add upload error handling middleware
-app.use("/api/upload", handleUploadErrors);
+app.use("/api/upload", handleUploadErrors)
 
 app.post("/api/submit", requireAuth, async (req, res) => {
-  const requestId = crypto.randomUUID();
-  const tempBase = path.join(os.tmpdir(), 'receipt-extractor', requestId);
-  await fsp.mkdir(tempBase, { recursive: true, mode: 0o700 });
+  const requestId = crypto.randomUUID()
+  const tempBase = path.join(os.tmpdir(), "receipt-extractor", requestId)
+  await fsp.mkdir(tempBase, { recursive: true, mode: 0o700 })
   try {
-    const { fields, signatureDataUrl, batchId } = req.body || {};
-    const token = await getGraphToken();
-    const item = await createListItem(token, fields || {});
+    const { fields, signatureDataUrl, batchId } = req.body || {}
+    const token = await getGraphToken()
+    const item = await createListItem(token, fields || {})
     const itemId =
-      item?.id || item?.value?.id || item?.name || `mock-${Date.now()}`;
+      item?.id || item?.value?.id || item?.name || `mock-${Date.now()}`
 
     if (batchId) {
       if (!BATCH_ID_REGEX.test(batchId)) {
-        return res.status(400).json({ message: "Invalid batchId" });
+        return res.status(400).json({ message: "Invalid batchId" })
       }
-      const src = path.resolve(TMP_ROOT, batchId);
+      const src = path.resolve(TMP_ROOT, batchId)
       if (!src.startsWith(TMP_ROOT + path.sep)) {
-        return res.status(400).json({ message: "Invalid batchId" });
+        return res.status(400).json({ message: "Invalid batchId" })
       }
-      if (fs.existsSync(src)) {
-        const batchDir = path.join(tempBase, 'batch');
-        await fsp.mkdir(batchDir, { recursive: true });
-        await fsp.rename(src, batchDir);
-        const files = await fsp.readdir(batchDir);
+      try {
+        await fsp.stat(src)
+        const batchDir = path.join(tempBase, "batch")
+        await fsp.mkdir(batchDir, { recursive: true })
+        await fsp.rename(src, batchDir)
+        const files = await fsp.readdir(batchDir)
         for (const name of files) {
-          const filePath = path.join(batchDir, name);
-          await uploadAttachment(token, itemId, name, filePath);
+          const filePath = path.join(batchDir, name)
+          await uploadAttachment(token, itemId, name, filePath)
+        }
+      } catch (err) {
+        if (err.code !== "ENOENT") {
+          throw err
         }
       }
     }
 
     if (signatureDataUrl) {
-      const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
+      const m = signatureDataUrl.match(/^data:image\/png;base64,(.+)$/)
       if (!m) {
-        return res.status(400).json({ message: 'Invalid signature' });
+        return res.status(400).json({ message: "Invalid signature" })
       }
-      const maxSize = 100 * 1024; // 100KB
-      let safeContent;
+      const maxSize = 100 * 1024 // 100KB
+      let safeContent
       try {
-        safeContent = validateInputForSignature(
-          Buffer.from(m[1], 'base64'),
-          { maxBytes: maxSize }
-        );
+        safeContent = validateInputForSignature(Buffer.from(m[1], "base64"), {
+          maxBytes: maxSize,
+        })
       } catch {
-        return res.status(400).json({ message: 'Invalid signature' });
+        return res.status(400).json({ message: "Invalid signature" })
       }
-      const tmp = path.join(tempBase, `signature.png`);
-      await fsp.writeFile(tmp, safeContent);
-      await uploadAttachment(token, itemId, "signature.png", tmp);
+      const tmp = path.join(tempBase, `signature.png`)
+      await fsp.writeFile(tmp, safeContent)
+      await uploadAttachment(token, itemId, "signature.png", tmp)
     }
 
-    res.json({ ok: true, itemId });
+    res.json({ ok: true, itemId })
   } catch (e) {
-    console.error('Submit error', {
+    console.error("Submit error", {
       message: e?.message,
       stack: e?.stack,
       timestamp: new Date().toISOString(),
       userId: req.user && req.user.id,
-      requestId
-    });
+      requestId,
+    })
     return res.status(500).json({
-      message: 'Internal server error',
-      requestId
-    });
+      message: "Internal server error",
+      requestId,
+    })
   } finally {
     try {
-      await fsp.rm(tempBase, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+      await fsp.rm(tempBase, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      })
     } catch (e) {
-      if (e && e.code !== 'ENOENT') console.warn('cleanup failed', { requestId, code: e.code });
+      if (e && e.code !== "ENOENT")
+        console.warn("cleanup failed", { requestId, code: e.code })
     }
   }
-});
+})
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  res.status(500).json({ message: "Internal server error" });
-});
+  console.error("Unhandled error:", err)
+  res.status(500).json({ message: "Internal server error" })
+})
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(port, () => console.log(`API listening on :${port}`));
+  app.listen(port, () => console.log(`API listening on :${port}`))
 }
 
-export default app;
+export default app
