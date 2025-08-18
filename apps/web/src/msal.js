@@ -28,16 +28,23 @@ let initPromise = null
 export function initMsal() {
   if (!initPromise) {
     initPromise = (async () => {
-      await msalInstance.initialize()
-      // Resolve any pending redirect flows (no-op if none)
-      await msalInstance.handleRedirectPromise()
+      try {
+        await msalInstance.initialize()
+        await msalInstance.handleRedirectPromise()
+        const accounts = msalInstance.getAllAccounts()
+        if (accounts.length === 0) {
+          await login()
+        }
+      } catch (error) {
+        console.error('MSAL initialization error:', error)
+        throw error
+      }
     })()
   }
   return initPromise
 }
 
 export async function login() {
-  await initMsal()
   await msalInstance.loginRedirect({ scopes: [scope] })
 }
 

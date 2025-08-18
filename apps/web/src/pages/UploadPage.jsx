@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { useReceipt } from '../receiptContext.jsx'
 import { getToken } from '../msal.js'
@@ -86,6 +86,30 @@ export default function UploadPage() {
   const { setFiles, setFields, setBatchId } = useReceipt()
   const navigate = useNavigate()
 
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const safeSetBusy = value => {
+    if (mountedRef.current) setBusy(value)
+  }
+  const safeSetError = value => {
+    if (mountedRef.current) setError(value)
+  }
+  const safeSetFiles = value => {
+    if (mountedRef.current) setFiles(value)
+  }
+  const safeSetFields = value => {
+    if (mountedRef.current) setFields(value)
+  }
+  const safeSetBatchId = value => {
+    if (mountedRef.current) setBatchId(value)
+  }
+
   async function onSelect(e) {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) {
@@ -110,9 +134,9 @@ export default function UploadPage() {
         })),
       })
 
-      setFiles(fileArray)
-      setBusy(true)
-      setError('')
+      safeSetFiles(fileArray)
+      safeSetBusy(true)
+      safeSetError('')
 
       try {
         const token = await getToken()
@@ -127,25 +151,25 @@ export default function UploadPage() {
           timeout: 30000, // 30 second timeout
         })
 
-        setFields(res.data.fields || {})
-        setBatchId(res.data.batchId || null)
+        safeSetFields(res.data.fields || {})
+        safeSetBatchId(res.data.batchId || null)
         navigate('/review')
       } catch (err) {
         console.error('Upload error:', err)
 
         // Handle different error types
         if (err.code === 'ECONNABORTED') {
-          setError('Upload timed out. Please try again with smaller files.')
+          safeSetError('Upload timed out. Please try again with smaller files.')
         } else if (err.response?.status === 413) {
-          setError('Files too large. Please reduce file size and try again.')
+          safeSetError('Files too large. Please reduce file size and try again.')
         } else if (err.response?.status === 400) {
-          setError(err.response.data?.message || 'Invalid files selected.')
+          safeSetError(err.response.data?.message || 'Invalid files selected.')
         } else if (err.response?.status === 429) {
-          setError(
+          safeSetError(
             'Too many upload attempts. Please wait a few minutes and try again.',
           )
         } else {
-          setError(
+          safeSetError(
             err?.response?.data?.message ||
               err.message ||
               'Upload failed. Please try again.',
@@ -153,12 +177,12 @@ export default function UploadPage() {
         }
       }
     } catch (validationError) {
-      setError(validationError.message)
+      safeSetError(validationError.message)
       setValidationInfo(null)
       // Clear the file input
       e.target.value = ''
     } finally {
-      setBusy(false)
+      safeSetBusy(false)
     }
   }
 
