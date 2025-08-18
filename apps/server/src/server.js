@@ -1,14 +1,15 @@
 import fs, { promises as fsp } from "fs";
 import os from "os";
 import path from "path";
-import express from "express";
-import cors from "cors";
-import fetch from "node-fetch";
-import dotenv from "dotenv";
-import { createRemoteJWKSet, jwtVerify } from "jose";
-import { fileURLToPath } from "url";
-import rateLimit from "express-rate-limit";
-import crypto from "crypto";
+import express from "express"
+import cors from "cors"
+import fetch from "node-fetch"
+import dotenv from "dotenv"
+import { createRemoteJWKSet, jwtVerify } from "jose"
+import { fileURLToPath } from "url"
+import rateLimit from "express-rate-limit"
+import crypto from "crypto"
+import helmet from "helmet"
 
 // Import our secure upload middleware
 import { secureUpload, handleUploadErrors } from "./middleware/secureUpload.js";
@@ -41,8 +42,41 @@ if (process.env.NODE_ENV !== "test") {
   }
 }
 
-const app = express();
-const port = process.env.PORT || 4000;
+const app = express()
+app.enable("trust proxy")
+
+if (process.env.NODE_ENV === "production") {
+  app.use((req, res, next) => {
+    if (!req.secure) {
+      return res.redirect(`https://${req.headers.host}${req.originalUrl}`)
+    }
+    next()
+  })
+}
+
+const extraCspSources = (process.env.CSP_EXTRA_SOURCES || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean)
+
+const helmetOptions = {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'", ...extraCspSources],
+    },
+  },
+}
+
+if (process.env.NODE_ENV === "production") {
+  helmetOptions.hsts = {
+    maxAge: 60 * 60 * 24 * 365,
+    includeSubDomains: true,
+  }
+}
+
+app.use(helmet(helmetOptions))
+
+const port = process.env.PORT || 4000
 
 // SECURITY: Rate limiting middleware
 // Global rate limiter with configurable limits
@@ -80,24 +114,7 @@ app.use(
   }),
 )
 
-// Security headers for production
-if (process.env.NODE_ENV === "production") {
-  app.use((req, res, next) => {
-    res.setHeader(
-      "Strict-Transport-Security",
-      "max-age=31536000; includeSubDomains",
-    )
-    res.setHeader("X-Content-Type-Options", "nosniff")
-    res.setHeader("X-Frame-Options", "DENY")
-    res.setHeader("X-XSS-Protection", "1; mode=block")
-    res.setHeader(
-      "Referrer-Policy",
-      "strict-origin-when-cross-origin",
-    )
-    next()
-  })
-}
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "20mb" }))
 
 const TMP_ROOT = path.join(__dirname, "../.tmp")
 fs.mkdirSync(TMP_ROOT, { recursive: true })
