@@ -1,0 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-[#121421] text-white font-sans leading-relaxed tracking-wide;
+}
+
+.btn-primary {
+  @apply bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded transition-all;
+}
