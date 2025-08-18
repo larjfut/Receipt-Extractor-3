@@ -4,23 +4,15 @@ import Upload from './pages/UploadPage.jsx'
 import Review from './pages/ReviewPage.jsx'
 import Signature from './pages/SignaturePage.jsx'
 import Submit from './pages/SubmitPage.jsx'
-import { msalInstance, login } from './msal.js'
+import { initMsal } from './msal.js'
 import { ReceiptProvider } from './receiptContext.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 export default function App() {
   useEffect(() => {
-    msalInstance
-      .handleRedirectPromise()
-      .then(async () => {
-        const accounts = msalInstance.getAllAccounts()
-        if (accounts.length === 0) {
-          await login()
-        }
-      })
-      .catch(error => {
-        console.error('MSAL redirect error:', error)
-      })
+    initMsal().catch(error => {
+      console.error('MSAL init error:', error)
+    })
   }, [])
 
   return (

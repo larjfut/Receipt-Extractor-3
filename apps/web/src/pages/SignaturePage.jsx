@@ -6,6 +6,7 @@ export default function SignaturePage() {
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [isDrawing, setIsDrawing] = useState(false)
+  const isDrawingRef = useRef(false)
   const [canvasSize, setCanvasSize] = useState({ width: 600, height: 200 })
 
   // Handle canvas resizing
@@ -60,6 +61,7 @@ export default function SignaturePage() {
     }
 
     function startDrawing(e) {
+      isDrawingRef.current = true
       setIsDrawing(true)
       const pos = getEventPos(e)
       ctx.beginPath()
@@ -67,7 +69,7 @@ export default function SignaturePage() {
     }
 
     function draw(e) {
-      if (!isDrawing) return
+      if (!isDrawingRef.current) return
 
       const pos = getEventPos(e)
       ctx.lineTo(pos.x, pos.y)
@@ -75,7 +77,8 @@ export default function SignaturePage() {
     }
 
     function stopDrawing(e) {
-      if (!isDrawing) return
+      if (!isDrawingRef.current) return
+      isDrawingRef.current = false
       setIsDrawing(false)
       ctx.beginPath()
 
@@ -102,7 +105,7 @@ export default function SignaturePage() {
       canvas.removeEventListener('touchend', stopDrawing)
       canvas.removeEventListener('touchcancel', stopDrawing)
     }
-  }, [isDrawing, setSignatureDataUrl])
+  }, [setSignatureDataUrl])
 
   function clearSignature() {
     const canvas = canvasRef.current
