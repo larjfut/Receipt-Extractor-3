@@ -23,21 +23,21 @@ export default function SubmitPage() {
 }
 
   return (
-    <div>
+    <div className='max-w-screen w-full px-4 mx-auto'>
       {message && (
-        <Alert type='success' className='mb-4'>
+        <Alert type='success' className='mb-4 sm:mb-6 md:mb-8'>
           {message}
         </Alert>
       )}
       {error && (
-        <Alert type='error' className='mb-4'>
+        <Alert type='error' className='mb-4 sm:mb-6 md:mb-8'>
           {error}
         </Alert>
       )}
-      <h2>Submit</h2>
-      <p>Files: {files.map(f => f.name).join(', ') || 'None'}</p>
-      <p>Batch: {batchId || 'n/a'}</p>
-      <button className='btn-primary' onClick={onSubmit}>Submit</button>
+      <h2 className='text-xl sm:text-2xl md:text-3xl mb-4 sm:mb-6'>Submit</h2>
+      <p className='mb-2 sm:mb-3 text-sm sm:text-base'>Files: {files.map(f => f.name).join(', ') || 'None'}</p>
+      <p className='mb-4 sm:mb-6 text-sm sm:text-base'>Batch: {batchId || 'n/a'}</p>
+      <button className='btn-primary text-sm sm:text-base' onClick={onSubmit}>Submit</button>
     </div>
   )
 }
