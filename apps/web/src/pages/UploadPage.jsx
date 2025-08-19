@@ -188,24 +188,24 @@ export default function UploadPage() {
   }
 
   return (
-    <div>
+    <div className='max-w-screen w-full px-4 mx-auto'>
       {error && (
-        <Alert type='error' className='mb-4'>
+        <Alert type='error' className='mb-4 sm:mb-6 md:mb-8'>
           {error}
         </Alert>
       )}
 
       {validationInfo && !busy && (
-        <Alert type='success' className='mb-4'>
+        <Alert type='success' className='mb-4 sm:mb-6 md:mb-8'>
           <strong>Files validated successfully</strong>
-          <div className='text-sm mt-2'>
+          <div className='text-sm mt-2 sm:text-base md:text-lg'>
             {validationInfo.count} file(s) selected • Total size {validationInfo.totalSize}
           </div>
-          <details className='mt-2 text-sm'>
+          <details className='mt-2 text-sm sm:text-base'>
             <summary className='cursor-pointer'>File details</summary>
             <ul className='mt-2 list-disc pl-5'>
               {validationInfo.files.map((file, idx) => (
-                <li key={idx} className='text-xs mb-1'>
+                <li key={idx} className='text-xs mb-1 sm:text-sm'>
                   <strong>{file.name}</strong> ({file.size}, {file.type})
                 </li>
               ))}
@@ -214,23 +214,18 @@ export default function UploadPage() {
         </Alert>
       )}
 
-      <h2>Upload Receipts</h2>
+      <h2 className='text-xl sm:text-2xl md:text-3xl mb-4 sm:mb-6'>Upload Receipts</h2>
 
-      <div style={{ marginBottom: '16px' }}>
+      <div className='mb-4 sm:mb-6'>
         <input
-          type="file"
-          accept="image/jpeg,image/jpg,image/png,image/gif,application/pdf"
+          type='file'
+          accept='image/jpeg,image/jpg,image/png,image/gif,application/pdf'
           multiple
           onChange={onSelect}
           disabled={busy}
-          style={{
-            padding: '8px',
-            border: '2px dashed #ccc',
-            borderRadius: '4px',
-            cursor: busy ? 'not-allowed' : 'pointer',
-          }}
+          className='p-2 border-2 border-dashed border-gray-300 rounded cursor-pointer disabled:cursor-not-allowed w-full sm:w-auto'
         />
-        <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+        <div className='text-xs text-gray-600 mt-1 sm:text-sm md:text-base'>
           Supported: JPG, PNG, GIF, PDF • Max {MAX_FILES} files • Max{' '}
           {MAX_FILE_SIZE / (1024 * 1024)}MB per file
         </div>
@@ -238,39 +233,14 @@ export default function UploadPage() {
 
       {/* Processing indicator */}
       {busy && (
-        <div
-          style={{
-            padding: '16px',
-            backgroundColor: '#e3f2fd',
-            border: '1px solid #2196f3',
-            borderRadius: '4px',
-            marginBottom: '16px',
-            textAlign: 'center'
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px'
-            }}
-          >
-            <div
-              style={{
-                width: '20px',
-                height: '20px',
-                border: '3px solid #2196f3',
-                borderTop: '3px solid transparent',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-              }}
-            ></div>
+        <div className='p-4 sm:p-6 bg-blue-50 border border-blue-500 rounded mb-4 sm:mb-6 text-center'>
+          <div className='flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 md:gap-6'>
+            <div className='w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin'></div>
             <div>
-              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+              <div className='font-bold mb-1 sm:mb-0'>
                 Processing Receipt
               </div>
-              <div style={{ fontSize: '14px', color: '#666' }}>
+              <div className='text-sm sm:text-base text-gray-600'>
                 Extracting data with OCR technology...
               </div>
             </div>
