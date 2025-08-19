@@ -120,64 +120,23 @@ export default function SignaturePage() {
     <div>
       <h2>Signature</h2>
 
-      <div
-        ref={containerRef}
-        style={{
-          width: '100%',
-          maxWidth: '600px',
-          margin: '0 auto',
-        }}
-      >
-        <div
-          style={{
-            position: 'relative',
-            width: '100%',
-            border: '2px solid #999',
-            borderRadius: '8px',
-            backgroundColor: '#fff',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          }}
-        >
+      <div ref={containerRef} className='w-full max-w-md mx-auto'>
+        <div className='relative w-full border-2 border-gray-400 rounded-lg bg-white shadow-md'>
           <canvas
             ref={canvasRef}
             width={canvasSize.width}
             height={canvasSize.height}
-            style={{
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-              cursor: isDrawing ? 'crosshair' : 'crosshair',
-              touchAction: 'none', // Prevent scrolling on mobile
-            }}
+            className='w-full h-auto block cursor-crosshair touch-none'
           />
 
           {!signatureDataUrl && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                color: '#999',
-                fontSize: '16px',
-                pointerEvents: 'none',
-                textAlign: 'center',
-              }}
-            >
+            <div className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none text-center'>
               Sign here
             </div>
           )}
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: '12px',
-            gap: '12px',
-          }}
-        >
+        <div className='flex justify-between items-center mt-3 gap-3'>
           <button
             onClick={clearSignature}
             className='bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-all focus:outline-none focus:ring-2 focus:ring-red-400 text-sm'
@@ -185,51 +144,24 @@ export default function SignaturePage() {
             Clear
           </button>
 
-          <div
-            style={{
-              fontSize: '12px',
-              color: '#666',
-              textAlign: 'center',
-              flex: 1,
-            }}
-          >
-            {signatureDataUrl
-              ? '✓ Signature captured'
-              : 'Draw your signature above'}
+          <div className='text-xs text-gray-600 text-center flex-1'>
+            {signatureDataUrl ? '✓ Signature captured' : 'Draw your signature above'}
           </div>
 
-          <div
-            style={{
-              fontSize: '12px',
-              color: '#999',
-            }}
-          >
+          <div className='text-xs text-gray-400'>
             {canvasSize.width} × {canvasSize.height}
           </div>
         </div>
       </div>
 
       {signatureDataUrl && (
-        <div style={{ marginTop: '24px' }}>
+        <div className='mt-6'>
           <h3>Preview</h3>
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              padding: '16px',
-              backgroundColor: '#f8f9fa',
-              textAlign: 'center',
-            }}
-          >
+          <div className='border border-gray-300 rounded p-4 bg-gray-100 text-center'>
             <img
               src={signatureDataUrl}
               alt="Signature preview"
-              style={{
-                maxWidth: '100%',
-                height: 'auto',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-              }}
+              className='max-w-full h-auto border border-gray-300 rounded'
             />
           </div>
         </div>
@@ -237,3 +169,4 @@ export default function SignaturePage() {
     </div>
   )
 }
+
