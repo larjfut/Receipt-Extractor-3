@@ -3,6 +3,7 @@ import axios from 'axios'
 import { useReceipt } from '../receiptContext.jsx'
 import { getToken } from '../msal.js'
 import { useNavigate } from 'react-router-dom'
+import Alert from '../components/Alert.jsx'
 
 // File validation constants (must match server)
 const ALLOWED_TYPES = [
@@ -188,6 +189,31 @@ export default function UploadPage() {
 
   return (
     <div>
+      {error && (
+        <Alert type='error' className='mb-4'>
+          {error}
+        </Alert>
+      )}
+
+      {validationInfo && !busy && (
+        <Alert type='success' className='mb-4'>
+          <strong>Files validated successfully</strong>
+          <div className='text-sm mt-2'>
+            {validationInfo.count} file(s) selected • Total size {validationInfo.totalSize}
+          </div>
+          <details className='mt-2 text-sm'>
+            <summary className='cursor-pointer'>File details</summary>
+            <ul className='mt-2 list-disc pl-5'>
+              {validationInfo.files.map((file, idx) => (
+                <li key={idx} className='text-xs mb-1'>
+                  <strong>{file.name}</strong> ({file.size}, {file.type})
+                </li>
+              ))}
+            </ul>
+          </details>
+        </Alert>
+      )}
+
       <h2>Upload Receipts</h2>
 
       <div style={{ marginBottom: '16px' }}>
@@ -209,26 +235,6 @@ export default function UploadPage() {
           {MAX_FILE_SIZE / (1024 * 1024)}MB per file
         </div>
       </div>
-
-      {/* Validation info display */}
-      {validationInfo && !busy && (
-        <div className='bg-green-600 text-white p-4 rounded-lg mb-4'>
-          <strong>✓ Files validated successfully</strong>
-          <div className='text-sm mt-2'>
-            {validationInfo.count} file(s) selected • Total size {validationInfo.totalSize}
-          </div>
-          <details className='mt-2 text-sm'>
-            <summary className='cursor-pointer'>File details</summary>
-            <ul className='mt-2 list-disc pl-5'>
-              {validationInfo.files.map((file, idx) => (
-                <li key={idx} className='text-xs mb-1'>
-                  <strong>{file.name}</strong> ({file.size}, {file.type})
-                </li>
-              ))}
-            </ul>
-          </details>
-        </div>
-      )}
 
       {/* Processing indicator */}
       {busy && (
@@ -269,13 +275,6 @@ export default function UploadPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Error display */}
-      {error && (
-        <div className='bg-red-600 text-white p-4 rounded-lg mb-4'>
-          <strong>❌ Error:</strong> {error}
         </div>
       )}
 
