@@ -212,27 +212,16 @@ export default function UploadPage() {
 
       {/* Validation info display */}
       {validationInfo && !busy && (
-        <div
-          style={{
-            padding: '12px',
-            backgroundColor: '#e8f5e8',
-            border: '1px solid #4caf50',
-            borderRadius: '4px',
-            marginBottom: '16px',
-          }}
-        >
+        <div className='bg-green-600 text-white p-4 rounded-lg mb-4'>
           <strong>✓ Files validated successfully</strong>
-          <div style={{ fontSize: '14px', marginTop: '8px' }}>
-            {validationInfo.count} file(s) selected • Total size:{' '}
-            {validationInfo.totalSize}
+          <div className='text-sm mt-2'>
+            {validationInfo.count} file(s) selected • Total size {validationInfo.totalSize}
           </div>
-          <details style={{ marginTop: '8px' }}>
-            <summary style={{ cursor: 'pointer', fontSize: '14px' }}>
-              File details
-            </summary>
-            <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+          <details className='mt-2 text-sm'>
+            <summary className='cursor-pointer'>File details</summary>
+            <ul className='mt-2 list-disc pl-5'>
               {validationInfo.files.map((file, idx) => (
-                <li key={idx} style={{ fontSize: '12px', marginBottom: '4px' }}>
+                <li key={idx} className='text-xs mb-1'>
                   <strong>{file.name}</strong> ({file.size}, {file.type})
                 </li>
               ))}
@@ -285,15 +274,7 @@ export default function UploadPage() {
 
       {/* Error display */}
       {error && (
-        <div
-          style={{
-            padding: '12px',
-            backgroundColor: '#f8d7da',
-            border: '1px solid #dc3545',
-            borderRadius: '4px',
-            marginBottom: '16px',
-          }}
-        >
+        <div className='bg-red-600 text-white p-4 rounded-lg mb-4'>
           <strong>❌ Error:</strong> {error}
         </div>
       )}

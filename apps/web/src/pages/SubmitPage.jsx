@@ -26,9 +26,13 @@ export default function SubmitPage() {
       <h2>Submit</h2>
       <p>Files: {files.map(f => f.name).join(', ') || 'None'}</p>
       <p>Batch: {batchId || 'n/a'}</p>
-      <button onClick={onSubmit}>Submit</button>
-      {message && <p style={{color:'green'}}>{message}</p>}
-      {error && <p style={{color:'crimson'}}>{error}</p>}
+      <button className='btn-primary' onClick={onSubmit}>Submit</button>
+      {message && (
+        <p className='bg-green-600 text-white p-4 rounded-lg mt-4'>{message}</p>
+      )}
+      {error && (
+        <p className='bg-red-600 text-white p-4 rounded-lg mt-4'>{error}</p>
+      )}
     </div>
   )
 }

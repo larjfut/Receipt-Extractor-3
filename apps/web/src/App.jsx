@@ -18,9 +18,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ReceiptProvider>
-        <div className='min-h-screen md:flex'>
-          <Sidebar />
-          <main className='flex-1 p-4 md:ml-64'>
+        <div className='min-h-screen flex flex-col'>
+          <NavBar />
+          <main className='flex-1 p-4'>
             <ErrorBoundary>
               <Routes>
                 <Route path='/' element={<Upload />} />
@@ -36,17 +36,27 @@ export default function App() {
   )
 }
 
-function Sidebar() {
+function NavBar() {
   return (
-    <aside className='bg-white/10 backdrop-blur w-full md:fixed md:inset-y-0 md:w-64 p-4 flex md:flex-col gap-4'>
-      <h1 className='text-xl font-semibold'>Receipt Extractor</h1>
-      <nav className='flex md:flex-col gap-2 md:gap-4 w-full justify-around md:justify-start'>
+    <nav className='bg-[#121421] text-white p-4'>
+      <div className='flex items-center justify-between h-16'>
+        <h1 className='text-xl font-semibold'>Receipt Extractor</h1>
+        <div className='hidden md:block lg:block'>
+          <div className='flex space-x-4'>
+            <NavLink to='/'>Upload</NavLink>
+            <NavLink to='/review'>Review</NavLink>
+            <NavLink to='/signature'>Signature</NavLink>
+            <NavLink to='/submit'>Submit</NavLink>
+          </div>
+        </div>
+      </div>
+      <div className='flex flex-col items-center md:hidden space-y-2 mt-2'>
         <NavLink to='/'>Upload</NavLink>
         <NavLink to='/review'>Review</NavLink>
         <NavLink to='/signature'>Signature</NavLink>
         <NavLink to='/submit'>Submit</NavLink>
-      </nav>
-    </aside>
+      </div>
+    </nav>
   )
 }
 
@@ -58,7 +68,9 @@ function NavLink({ to, children }) {
   return (
     <button
       onClick={() => navigate(to)}
-      className={`btn-primary ${isActive ? 'bg-cyan-600' : ''}`}
+      className={`px-4 py-2 rounded transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
+        isActive ? 'border-b-2 border-cyan-400' : ''
+      }`}
     >
       {children}
     </button>
