@@ -180,17 +180,7 @@ export default function SignaturePage() {
         >
           <button
             onClick={clearSignature}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = '#c82333')}
-            onMouseOut={(e) => (e.target.style.backgroundColor = '#dc3545')}
+            className='bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-all focus:outline-none focus:ring-2 focus:ring-red-400 text-sm'
           >
             Clear
           </button>
