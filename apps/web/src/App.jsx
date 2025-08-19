@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import Upload from './pages/UploadPage.jsx'
 import Review from './pages/ReviewPage.jsx'
@@ -10,7 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 export default function App() {
   useEffect(() => {
-    initMsal().catch(error => {
+    initMsal().catch((error) => {
       console.error('MSAL init error:', error)
     })
   }, [])
@@ -18,15 +18,15 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ReceiptProvider>
-        <div className='min-h-screen flex flex-col'>
+        <div className="min-h-screen flex flex-col">
           <NavBar />
-          <main className='flex-1 p-4'>
+          <main className="flex-1 p-4">
             <ErrorBoundary>
               <Routes>
-                <Route path='/' element={<Upload />} />
-                <Route path='/review' element={<Review />} />
-                <Route path='/signature' element={<Signature />} />
-                <Route path='/submit' element={<Submit />} />
+                <Route path="/" element={<Upload />} />
+                <Route path="/review" element={<Review />} />
+                <Route path="/signature" element={<Signature />} />
+                <Route path="/submit" element={<Submit />} />
               </Routes>
             </ErrorBoundary>
           </main>
@@ -37,25 +37,57 @@ export default function App() {
 }
 
 function NavBar() {
+  const [open, setOpen] = useState(false)
+
+  const links = [
+    { to: '/', label: 'Upload', variant: 'primary' },
+    { to: '/review', label: 'Review', variant: 'secondary' },
+    { to: '/signature', label: 'Signature', variant: 'secondary' },
+    { to: '/submit', label: 'Submit', variant: 'primary' },
+  ]
+
   return (
-    <nav className='bg-[#121421] text-white p-4'>
-      <div className='flex items-center justify-between h-16'>
-        <h1 className='text-xl font-semibold'>Receipt Extractor</h1>
-        <div className='hidden md:block lg:block'>
-          <div className='flex space-x-4'>
-            <NavLink to='/' variant='primary'>Upload</NavLink>
-            <NavLink to='/review' variant='secondary'>Review</NavLink>
-            <NavLink to='/signature' variant='secondary'>Signature</NavLink>
-            <NavLink to='/submit' variant='primary'>Submit</NavLink>
-          </div>
-        </div>
+    <nav className="bg-[#121421] text-white p-4 md:flex md:items-center md:justify-between">
+      <div className="flex items-center justify-between h-16">
+        <h1 className="text-xl font-semibold">Receipt Extractor</h1>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="md:hidden rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          aria-controls="main-menu"
+          aria-expanded={open}
+        >
+          <span className="sr-only">Toggle menu</span>
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth="2"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
       </div>
-      <div className='flex flex-col items-center md:hidden space-y-2 mt-2'>
-        <NavLink to='/' variant='primary'>Upload</NavLink>
-        <NavLink to='/review' variant='secondary'>Review</NavLink>
-        <NavLink to='/signature' variant='secondary'>Signature</NavLink>
-        <NavLink to='/submit' variant='primary'>Submit</NavLink>
-      </div>
+      <ul
+        id="main-menu"
+        className={`${
+          open
+            ? 'max-h-40 opacity-100 visible sm:block'
+            : 'max-h-0 opacity-0 invisible sm:hidden'
+        } md:opacity-100 md:max-h-none md:visible md:flex md:flex-row transition-all duration-300 ease-in-out overflow-hidden flex flex-col md:space-x-4 items-center space-y-2 md:space-y-0 mt-2 md:mt-0`}
+      >
+        {links.map((link) => (
+          <li key={link.to}>
+            <NavLink to={link.to} variant={link.variant}>
+              {link.label}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }
@@ -68,8 +100,8 @@ function NavLink({ to, children, variant }) {
     variant === 'primary'
       ? 'btn-primary'
       : variant === 'secondary'
-      ? 'btn-secondary'
-      : 'btn-tertiary'
+        ? 'btn-secondary'
+        : 'btn-tertiary'
 
   return (
     <button
