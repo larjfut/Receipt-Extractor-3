@@ -43,34 +43,38 @@ function NavBar() {
         <h1 className='text-xl font-semibold'>Receipt Extractor</h1>
         <div className='hidden md:block lg:block'>
           <div className='flex space-x-4'>
-            <NavLink to='/'>Upload</NavLink>
-            <NavLink to='/review'>Review</NavLink>
-            <NavLink to='/signature'>Signature</NavLink>
-            <NavLink to='/submit'>Submit</NavLink>
+            <NavLink to='/' variant='primary'>Upload</NavLink>
+            <NavLink to='/review' variant='secondary'>Review</NavLink>
+            <NavLink to='/signature' variant='secondary'>Signature</NavLink>
+            <NavLink to='/submit' variant='primary'>Submit</NavLink>
           </div>
         </div>
       </div>
       <div className='flex flex-col items-center md:hidden space-y-2 mt-2'>
-        <NavLink to='/'>Upload</NavLink>
-        <NavLink to='/review'>Review</NavLink>
-        <NavLink to='/signature'>Signature</NavLink>
-        <NavLink to='/submit'>Submit</NavLink>
+        <NavLink to='/' variant='primary'>Upload</NavLink>
+        <NavLink to='/review' variant='secondary'>Review</NavLink>
+        <NavLink to='/signature' variant='secondary'>Signature</NavLink>
+        <NavLink to='/submit' variant='primary'>Submit</NavLink>
       </div>
     </nav>
   )
 }
 
-function NavLink({ to, children }) {
+function NavLink({ to, children, variant }) {
   const navigate = useNavigate()
   const location = useLocation()
   const isActive = location.pathname === to
+  const variantClass =
+    variant === 'primary'
+      ? 'btn-primary'
+      : variant === 'secondary'
+      ? 'btn-secondary'
+      : 'btn-tertiary'
 
   return (
     <button
       onClick={() => navigate(to)}
-      className={`px-4 py-2 rounded transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-        isActive ? 'border-b-2 border-cyan-400' : ''
-      }`}
+      className={`${variantClass} ${isActive ? 'border-b-2 border-cyan-500' : ''}`}
     >
       {children}
     </button>

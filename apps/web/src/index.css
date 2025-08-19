@@ -9,5 +9,13 @@ body {
 }
 
 .btn-primary {
-  @apply bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400;
+  @apply inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded transition-all duration-300 hover:bg-cyan-600 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm md:text-lg;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center gap-2 px-4 py-2 border border-cyan-500 text-cyan-500 rounded transition-all duration-300 hover:bg-cyan-500 hover:text-white hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm md:text-lg;
+}
+
+.btn-tertiary {
+  @apply inline-flex items-center gap-2 px-4 py-2 text-white rounded transition-all duration-300 hover:text-cyan-500 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm md:text-lg;
 }
