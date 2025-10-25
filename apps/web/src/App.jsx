@@ -10,9 +10,11 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 export default function App() {
   useEffect(() => {
-    initMsal().catch((error) => {
-      console.error('MSAL init error:', error)
-    })
+    if (import.meta.env.VITE_E2E !== 'true') {
+      initMsal().catch((error) => {
+        console.error('MSAL init error:', error)
+      })
+    }
   }, [])
 
   return (
